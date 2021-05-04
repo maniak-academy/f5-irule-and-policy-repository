@@ -1,0 +1,15 @@
+when HTTP_REQUEST {
+  if { ([HTTP::path] contains "/account") && [HTTP::cookie value "cookiename" ] contains "abc"  }{
+        pool poola
+        persist cookie insert cookie 7200
+        log local0. "poola"
+  } elseif { [HTTP::path] contains "/aaccount" } {
+        pool poolb
+        persist cookie insert cookie 7200
+        log local0. "poolb"  }
+  else {
+        pool poolc
+        persist none
+        log local0. "poolc"
+    }
+}
