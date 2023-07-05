@@ -1,0 +1,180 @@
+when HTTP_REQUEST priority 500 {
+
+#### DEUBG LOGGING IRULE - ONLY RUN FOR TESTING #######
+
+    # if {[string match "*\/gasmaps/rest/services/gasinterfaces/gasadc_fme_miratatables/*" [HTTP::path]]} {
+    #     log local0. "sebbymap request Received request from [IP::client_addr]"
+    #     log local0. "sebbymap request HTTP Method = [HTTP::method]"
+    #     log local0. "sebbymap request HTTP URI = [HTTP::uri]"
+    #     log local0. "sebbymap request HTTP Path = [HTTP::path]"
+    #     log local0. "sebbymap request HTTP Query = [HTTP::query]"
+    #     log local0. "sebbymap request HTTP Version = [HTTP::version]"
+    #     log local0. "sebbymap request HTTP Host Header = [HTTP::host]"
+    #     log local0. "sebbymap request HTTP User Agent Header = [HTTP::header value "user-agent"]"
+    #     log local0. "sebbymap request POST Body = [HTTP::payload]"        
+    # }
+
+#### DEUBG LOGGING IRULE - ONLY RUN FOR TESTING #######
+
+
+
+    pool sebbymap-portal
+    set mypick [LB::select]
+    eval $mypick
+
+
+
+    switch -glob -- [HTTP::uri] {
+        "/portal/*" {
+            pool "/Prod-Server-Partition/sebbymap-portal"
+            HTTP::header insert X-Forwarded-Host sebbymap.example.com
+
+
+            if { [LB::server addr] eq "10.252.100.202%2" } {
+                HTTP::header replace Host "sebbymap.example.com"
+                set translated_uri [string map {"/portal/" "/old/"} [HTTP::uri]]
+                HTTP::uri $translated_uri
+                HTTP::header replace Host "SERVER1.EXAMPLE.COM"
+                HTTP::header insert "X-Forwarded-For" [IP::client_addr]
+                HTTP::header insert X-Forwarded-Host sebbymap.example.com
+           } else {
+                HTTP::header insert X-Forwarded-Host sebbymap.example.com
+
+                HTTP::header replace Host "sebbymap.example.com"
+                set translated_uri [string map {"/portal/" "/old/"} [HTTP::uri]]
+                HTTP::uri $translated_uri
+                #log local0. "sebbymap Response HTTP Host Header = $uri"
+                HTTP::header replace Host "server2.example.com"
+                HTTP::header insert "X-Forwarded-For" [IP::client_addr]
+                HTTP::header insert X-Forwarded-Host sebbymap.example.com
+
+            }
+        }
+        "/portal" {
+            pool "/Prod-Server-Partition/sebbymap-portal"
+            set uri [HTTP::uri]; set path [HTTP::path]; set query [HTTP::query]
+            HTTP::header replace Host "sebbymap.example.com"
+            set newpath [string map -nocase {"/portal" "/portal/"} $path]
+            HTTP::uri "$newpath$query"
+            HTTP::header insert X-Forwarded-Host sebbymap.example.com
+
+            if { [LB::server addr] eq "10.252.100.202%2" } {
+                set translated_uri [string map {"/portal/" "/old/"} [HTTP::uri]]
+                HTTP::uri $translated_uri
+                HTTP::header replace Host "SERVER1.EXAMPLE.COM"
+                HTTP::header insert "X-Forwarded-For" [IP::client_addr]
+                HTTP::header insert "X-Forwarded-Host" [HTTP::host]
+            } else {
+                set translated_uri [string map {"/portal/" "/old/"} [HTTP::uri]]
+                HTTP::uri $translated_uri
+                HTTP::header replace Host "server1.example.com"
+                HTTP::header insert "X-Forwarded-For" [IP::client_addr]
+                HTTP::header insert "X-Forwarded-Host" [HTTP::host]
+            }
+        }
+        "/hosting" {
+            pool "/Prod-Server-Partition/sebbymap-hosting"
+            set uri [HTTP::uri]; set path [HTTP::path]; set query [HTTP::query]
+            HTTP::header replace Host "sebbymap.example.com"
+            set newpath [string map -nocase {"/hosting" "/hosting/"} $path]
+            HTTP::uri "$newpath$query"
+            HTTP::header insert X-Forwarded-Host sebbymap.example.com
+        }
+        "/hosting/*" {
+            pool "/Prod-Server-Partition/sebbymap-hosting"
+        }
+        "/gasmaps" {
+            pool "/Prod-Server-Partition/sebbymap-gasmaps"
+            set uri [HTTP::uri]; set path [HTTP::path]; set query [HTTP::query]
+            HTTP::header replace Host "sebbymap.example.com"
+            set newpath [string map -nocase {"/gasmaps" "/gasmaps/"} $path]
+            HTTP::uri "$newpath$query"
+            HTTP::header insert X-Forwarded-Host sebbymap.example.com
+        }
+        "/gasmaps/*" {
+            pool "/Prod-Server-Partition/sebbymap-gasmaps"
+        }
+        "/electricmaps" {
+            pool "/Prod-Server-Partition/sebbymap-electricmaps"
+            set uri [HTTP::uri]; set path [HTTP::path]; set query [HTTP::query]
+            HTTP::header replace Host "sebbymap.example.com"
+            set newpath [string map -nocase {"/electricmaps" "/electricmaps/"} $path]
+            HTTP::uri "$newpath$query"
+            HTTP::header insert X-Forwarded-Host sebbymap.example.com
+        }
+        "/electricmaps/*" {
+            pool "/Prod-Server-Partition/sebbymap-electricmaps"
+        }
+        "/geoprocessing" {
+            pool "/Prod-Server-Partition/sebbymap-geoprocessing"
+            set uri [HTTP::uri]; set path [HTTP::path]; set query [HTTP::query]
+            HTTP::header replace Host "sebbymap.example.com"
+            set newpath [string map -nocase {"/geoprocessing" "/geoprocessing/"} $path]
+            HTTP::uri "$newpath$query"
+            HTTP::header insert X-Forwarded-Host sebbymap.example.com
+        }
+        "/geoprocessing/*" {
+            pool "/Prod-Server-Partition/sebbymap-geoprocessing"
+        }
+        default {
+            # don't do anything...
+        }
+    }
+}
+
+
+when HTTP_RESPONSE priority 500 {
+
+
+#### DEUBG LOGGING IRULE - ONLY RUN FOR TESTING UNCOMMENT #######
+
+        # log local0. "sebbymap Response from [IP::client_addr]"
+        # log local0. "sebbymap Response HTTP Host Header = [HTTP::header value "host"]"
+        # log local0. "sebbymap Response POST Body = [HTTP::payload]"
+
+#### DEUBG LOGGING IRULE - ONLY RUN FOR TESTING #######
+
+    
+    if { [HTTP::header exists Location] } {
+        set translated_loc [string map {"old" "portal"} [HTTP::header Location]]
+        #HTTP::header replace Location [string map {"https://sebbymap.example.com/old" "https://sebbymap.example.com/portal"}  $translated_loc]
+        HTTP::header replace Location $translated_loc
+    }
+    if { [HTTP::header exists Location] } {
+        set translated_loc [string map {"client_id=portal" "client_id=old"} [HTTP::header Location]]
+        #HTTP::header replace Location [string map {"https://sebbymap.example.com/old" "https://sebbymap.example.com/portal"}  $translated_loc]
+        HTTP::header replace Location $translated_loc
+    }
+    
+    if { [HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://SERVER1.EXAMPLE.COM:443/" "https://sebbymap.example.com/"} [HTTP::header Location]]
+    }
+    if { [HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://server1.example.com:443/" "https://sebbymap.example.com/"} [HTTP::header Location]]
+    }
+    if { [HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://SERVER1.EXAMPLE.COM/old" "https://sebbymap.example.com/portal"} [HTTP::header Location]]
+    }
+    if {[HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://SERVER1.EXAMPLE.COM/" "https://sebbymap.example.com/"} [HTTP::header Location]]
+    }
+    if { [HTTP::header exists Location] } {
+         HTTP::header replace Location [string map {"https://server1.example.com/old" "https://sebbymap.example.com/portal"} [HTTP::header Location]]
+    }
+
+    if { [HTTP::header exists Location] } {
+         HTTP::header replace Location [string map {"https://server1.example.com/" "https://sebbymap.example.com/"} [HTTP::header Location]]
+    }
+    if { [HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://serverb.example.com/old" "https://sebbymap.example.com/hosting"} [HTTP::header Location]]
+    }
+
+    if { [HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://serverb.example.com/old" "https://sebbymap.example.com/hosting"} [HTTP::header Location]]
+    }
+
+    if { [HTTP::header exists Location] } {
+        HTTP::header replace Location [string map {"https://serverb.example.com/old" "https://sebbymap.example.com/gasmaps"} [HTTP::header Location]]
+    }
+
+}
